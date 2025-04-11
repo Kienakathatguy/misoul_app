@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'login_screen.dart';
+import 'package:misoul_fixed_app/screens/login_screen.dart';
+import 'package:misoul_fixed_app/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -22,87 +20,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return emailRegex.hasMatch(email);
   }
 
-  void _register() async {
+  Future<void> _register() async {
     setState(() {
       showEmailError = !isValidEmail(_emailController.text.trim());
     });
 
     if (!showEmailError && agreeToTerms) {
-      try {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
+      final message = await AuthService.registerWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 Đăng ký thành công!")),
-        );
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      } on FirebaseAuthException catch (e) {
-        String message = "Đã xảy ra lỗi";
-        if (e.code == 'email-already-in-use') {
-          message = "Email này đã được đăng ký!";
-        } else if (e.code == 'weak-password') {
-          message = "Mật khẩu quá yếu (tối thiểu 6 ký tự)";
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi không xác định: $e")),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message ?? "Đăng ký thành công")),
+      );
     }
   }
 
   Future<void> _signInWithGoogle() async {
-    try {
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return;
-
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("✅ Đăng nhập Google: ${userCredential.user?.email ?? 'Không có email'}")),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Đăng nhập Google thất bại")),
-      );
-    }
+    final message = await AuthService.signInWithGoogle();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message ?? "Đăng nhập Google thành công")),
+    );
   }
 
   Future<void> _signInWithFacebook() async {
-    try {
-      final result = await FacebookAuth.instance.login();
-      if (result.status == LoginStatus.success) {
-        final credential = FacebookAuthProvider.credential(result.accessToken!.token);
-        final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Đăng nhập Facebook: ${userCredential.user?.email ?? 'Không có email'}")),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Đăng nhập Facebook bị huỷ")),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Đăng nhập Facebook thất bại")),
-      );
-    }
+    final message = await AuthService.signInWithFacebook();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message ?? "Đăng nhập Facebook thành công")),
+    );
   }
 
   @override
@@ -113,7 +59,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Header
               Stack(
                 children: [
                   Container(
@@ -127,11 +72,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     top: 70,
                     child: Align(
                       alignment: Alignment.topCenter,
-                      child: Image.asset(
-                        'assets/images/logo.png',
-                        width: 65,
-                        height: 65,
-                      ),
+                      child: Image.asset('assets/images/logo.png', width: 65, height: 65),
                     ),
                   ),
                 ],
@@ -140,7 +81,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text("Đăng ký tài khoản", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 28),
 
-              // Email
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: TextField(
@@ -150,30 +90,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: const Icon(Icons.email_outlined),
                     filled: true,
                     fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(
-                        color: showEmailError ? Colors.pink : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
                   ),
                 ),
               ),
-              if (showEmailError)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8, left: 32, right: 32),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.purple),
-                      SizedBox(width: 8),
-                      Text("Email không hợp lệ!", style: TextStyle(color: Colors.purple)),
-                    ],
-                  ),
-                ),
               const SizedBox(height: 20),
-
-              // Password
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: TextField(
@@ -182,7 +103,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   decoration: InputDecoration(
                     hintText: "Nhập mật khẩu...",
                     prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: const Icon(Icons.visibility_off),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
@@ -191,7 +111,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Checkbox
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Row(
@@ -222,7 +141,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 8),
 
-              // Đăng ký
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: SizedBox(
@@ -239,10 +157,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
               const Text("hoặc đăng ký với", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 12),
 
-              // Social login
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -257,6 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -281,7 +200,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 class SocialButton extends StatelessWidget {
   final IconData icon;
-
   const SocialButton({super.key, required this.icon});
 
   @override
