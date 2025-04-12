@@ -1,0 +1,97 @@
+#include <WiFi.h>
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <SparkFun_MAX3010x.h>
+#include <MAX30205.h>
+#include <Firebase_ESP_Client.h>
+
+
+#define WIFI_SSID "YOUR_WIFI_NAME"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+
+#define API_KEY "YOUR_FIREBASE_API_KEY"
+#define DATABASE_URL "https://your-project-id-default-rtdb.firebaseio.com/"
+
+// Firebase objects
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+MAX30105 particleSensor;
+MAX30205 tempSensor;
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+const int buttonPin = 25;
+
+void connectToWiFi() {
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  pinMode(buttonPin, INPUT_PULLUP);
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("MISoul starting...");
+  display.display();
+
+  connectToWiFi();
+
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+
+  particleSensor.begin(Wire, I2C_SPEED_STANDARD);
+  particleSensor.setup();
+  particleSensor.setPulseAmplitudeRed(0x0A);
+
+  tempSensor.begin();
+}
+
+void loop() {
+  if (digitalRead(buttonPin) == LOW) {
+    Serial.println("Button pressed!");
+    delay(300);
+  }
+
+  int bpm = particleSensor.getHeartRate();
+  int spo2 = particleSensor.getSpO2();
+  float temp = tempSensor.getTemperature();
+
+  Serial.printf("BPM: %d, SpO2: %d%%, Temp: %.2fC\n", bpm, spo2, temp);
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println("MISoul Monitor");
+  display.println("------------------");
+  display.printf("BPM: %d\nSpO2: %d%%\nTemp: %.2fC\n", bpm, spo2, temp);
+  display.display();
+
+  String path = "/MISoulData";
+
+  FirebaseJson json;
+  json.set("bpm", bpm);
+  json.set("spo2", spo2);
+  json.set("temp", temp);
+  json.set("timestamp", millis());
+
+  if (Firebase.RTDB.pushJSON(&fbdo, path, &json)) {
+    Serial.println("✔ Data pushed to Firebase");
+  } else {
+    Serial.print("❌ Error: ");
+    Serial.println(fbdo.errorReason());
+  }
+
+  delay(3000);
+}
