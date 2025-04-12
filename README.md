@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # MISOUL App
 
 MISOUL App là một ứng dụng Flutter giúp người dùng quản lý cảm xúc và thư giãn thông qua các bài tập trị liệu. Ứng dụng cung cấp các tính năng như trò chuyện với chatbot, theo dõi tâm trạng, và nhiều tính năng hữu ích khác.
@@ -123,3 +124,21 @@ Nếu có bất kỳ câu hỏi hoặc đề xuất nào, vui lòng liên hệ:
 Email: nguyenthuylinh040205@gmail.com
 
 
+=======
+# misoul_fixed_app
+
+A new Flutter project.
+
+## Getting Started
+
+This project is a starting point for a Flutter application.
+
+A few resources to get you started if this is your first Flutter project:
+
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
+>>>>>>> 78a51ad (Fix music 2)

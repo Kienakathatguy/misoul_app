@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+<<<<<<< HEAD
 # Miscellaneous
 *.class
 *.lock
@@ -165,3 +166,5 @@ app.*.symbols
 
 .env
 /android/app/google-services.json
+=======
+>>>>>>> 78a51ad (Fix music 2)
