@@ -1,235 +1,236 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class IMUScreen extends StatefulWidget {
-  const IMUScreen({super.key});
+  const IMUScreen({Key? key}) : super(key: key);
 
   @override
-  IMUScreenState createState() => IMUScreenState();
+  State<IMUScreen> createState() => _IMUScreenState();
 }
 
-class IMUScreenState extends State<IMUScreen> {
-  Color _lightColor = Colors.grey; // Màu mặc định của ánh sáng
-  bool _isBlinking = false; // Trạng thái tránh spam IMU
-  List<String> _history = []; // Lịch sử các tín hiệu IMU
+class _IMUScreenState extends State<IMUScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TextEditingController _patientIdController = TextEditingController();
 
-  // Hàm bật hiệu ứng ánh sáng (Nhấp nháy 2 lần)
-  Future<void> _sendIMU(Color color, String name) async {
-    if (_isBlinking) return; // Nếu đang nhấp nháy, không chạy tiếp
-    setState(() => _isBlinking = true);
+  String _currentPatientId = '';
+  bool _isConnected = false;
+  bool _isSending = false;
 
-    for (int i = 0; i < 4; i++) {
-      await Future.delayed(const Duration(milliseconds: 500)); // Chờ 500ms
-      if (!mounted) return; // Kiểm tra xem widget còn tồn tại không
-      setState(() {
-        _lightColor = (_lightColor == Colors.grey) ? color : Colors.grey;
-      });
-    }
+  final String _caregiverId = 'caregiver01';
+  final String _caregiverName = 'Người chăm sóc';
 
-    // Thêm tín hiệu vào lịch sử
-    setState(() {
-      _history.insert(0, 'Sent by: $name at ${TimeOfDay.now().format(context)}');
-      _isBlinking = false;
-      _lightColor = Colors.grey; // Reset về màu ban đầu
-    });
+  @override
+  void initState() {
+    super.initState();
+    _initializeFirebase();
   }
 
-  // Navigate to different screens
-  void _navigateTo(BuildContext context, String route) {
-    Navigator.pushReplacementNamed(context, route);
+  Future<void> _initializeFirebase() async {
+    await Firebase.initializeApp();
+  }
+
+  Future<void> _sendMissYouMessage() async {
+    if (!_isConnected) return;
+
+    setState(() => _isSending = true);
+
+    try {
+      await _firestore.collection('imuMessages').add({
+        'senderId': _caregiverId,
+        'receiverId': _currentPatientId,
+        'messageType': 'miss_you',
+        'messageText': '$_caregiverName đã gửi lời thương yêu tới bạn',
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã gửi "I miss you" thành công!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
+  void _connectToPatient() async {
+    final patientId = _patientIdController.text.trim();
+    if (patientId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập ID của patient'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final snapshot = await _firestore.collection('users').where('id', isEqualTo: patientId).get();
+
+    if (snapshot.docs.isNotEmpty) {
+      final userData = snapshot.docs.first.data();
+      if (userData['userType'] == 'patient') {
+        setState(() {
+          _isConnected = true;
+          _currentPatientId = patientId;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã kết nối với patient $patientId'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ID này không phải của patient'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy patient với ID này'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _patientIdController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(0),
-        child: AppBar(
-          backgroundColor: Colors.blueAccent, // Màu khác thay vì hồng
-          elevation: 0,
-        ),
-      ),
-      body: Column(
-        children: [
-          // Top section with status bar time
-          Container(
-            padding: EdgeInsets.fromLTRB(20, 10, 20, 30),
-            decoration: BoxDecoration(
-              color: Colors.blueAccent,
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-            ),
-            child: Column(
-              children: [
-                // Status bar time
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      TimeOfDay.now().format(context), // Hiển thị giờ hiện tại
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    Row(
-                      children: [
-                        Icon(Icons.signal_cellular_alt, color: Colors.white),
-                        SizedBox(width: 5),
-                        Icon(Icons.wifi, color: Colors.white),
-                        SizedBox(width: 5),
-                        Icon(Icons.battery_full, color: Colors.white),
-                      ],
-                    ),
-                  ],
-                ),
-                SizedBox(height: 20),
-
-                // Title with back button and home button
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context), // Back button
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-                      ),
-                    ),
-                    SizedBox(width: 15),
-                    Text(
-                      'IMU - I Miss U',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Spacer(),
-                    // Home button
-                    IconButton(
-                      icon: Icon(Icons.home, color: Colors.white),
-                      onPressed: () => _navigateTo(context, '/home'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: 20),
-
-          // The light circle with AnimatedSwitcher for smooth effect
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: AnimatedContainer(
-              key: ValueKey<Color>(_lightColor),
-              duration: const Duration(milliseconds: 500),
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _lightColor, // Màu thay đổi khi nhận IMU
-                boxShadow: [
-                  BoxShadow(
-                    color: _lightColor.withOpacity(0.5),
-                    blurRadius: 15,
-                    spreadRadius: 3,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text("Nhấn vào người thân để gửi tín hiệu IMU", style: TextStyle(fontSize: 16)),
-
-          // List of family members
-          ListTile(
-            leading: const Icon(Icons.person, color: Colors.blue),
-            title: const Text("Mẹ"),
-            trailing: ElevatedButton(
-              onPressed: () => _sendIMU(Colors.blue, "Mẹ"), // Blue for mother
-              child: const Text("Nhớ bạn 💙"),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person, color: Colors.red),
-            title: const Text("Bố"),
-            trailing: ElevatedButton(
-              onPressed: () => _sendIMU(Colors.red, "Bố"), // Red for father
-              child: const Text("Nhớ bạn ❤️"),
-            ),
-          ),
-
-          // History of sent IMUs
-          SizedBox(height: 20),
-          const Text(
-            "Lịch sử tín hiệu IMU",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _history.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: Icon(Icons.history, color: Colors.grey),
-                  title: Text(_history[index]),
-                );
-              },
-            ),
+      appBar: AppBar(
+        title: const Text('I MISS U - Caregiver'),
+        backgroundColor: Colors.pink,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              setState(() {
+                _isConnected = false;
+                _currentPatientId = '';
+              });
+            },
+            tooltip: 'Ngắt kết nối',
           ),
         ],
       ),
-
-      // Bottom navigation bar (feature bar)
-      bottomNavigationBar: Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 5,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: Icon(Icons.emoji_emotions, color: Colors.grey),
-              onPressed: () => _navigateTo(context, '/mood_tracker'),
-            ),
-            IconButton(
-              icon: Icon(Icons.chat_bubble_outline, color: Colors.grey),
-              onPressed: () => _navigateTo(context, '/chatbot'),
-            ),
-            SizedBox(width: 50), // Space for FAB
-            IconButton(
-              icon: Icon(Icons.music_note, color: Colors.grey),
-              onPressed: () => _navigateTo(context, '/healing'),
-            ),
-            IconButton(
-              icon: Icon(Icons.mic, color: Colors.grey),
-              onPressed: () => _navigateTo(context, '/voice_recorder'),
-            ),
-          ],
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (!_isConnected) ...[
+                const Text(
+                  'Kết nối với bệnh nhân',
+                  style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20.0),
+                TextField(
+                  controller: _patientIdController,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập ID bệnh nhân (ví dụ: patient01)',
+                    fillColor: Colors.white,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20.0),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 15.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30.0),
+                    ),
+                  ),
+                  onPressed: _connectToPatient,
+                  child: const Text('Kết nối'),
+                ),
+              ] else ...[
+                Text(
+                  'Đã kết nối với Patient ID: $_currentPatientId',
+                  style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 40.0),
+                GestureDetector(
+                  onTap: _isSending ? null : _sendMissYouMessage,
+                  child: Container(
+                    width: 200.0,
+                    height: 200.0,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.pink.withOpacity(0.3),
+                          spreadRadius: 5,
+                          blurRadius: 7,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _isSending
+                          ? const CircularProgressIndicator(color: Colors.pink)
+                          : const Icon(
+                        Icons.favorite,
+                        color: Colors.pink,
+                        size: 100.0,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20.0),
+                const Text(
+                  'Chạm vào trái tim để gửi "I miss you"',
+                  style: TextStyle(fontSize: 16.0),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 40.0),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 15.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30.0),
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isConnected = false;
+                      _currentPatientId = '';
+                    });
+                  },
+                  child: const Text('Ngắt kết nối'),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
-
-      // Floating action button (IMU signal button)
-      floatingActionButton: Container(
-        height: 60,
-        width: 60,
-        margin: EdgeInsets.only(bottom: 30),
-        child: FloatingActionButton(
-          backgroundColor: Color(0xFF1A1A2E),
-          child: Icon(Icons.favorite, color: Colors.white),
-          onPressed: () => {}, // Current screen (IMU tracker)
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }
