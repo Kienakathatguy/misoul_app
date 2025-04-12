@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:misoul_fixed_app/services/user_service.dart';
 
 class AuthService {
   static final _auth = FirebaseAuth.instance;
@@ -9,6 +10,7 @@ class AuthService {
   static Future<String?> registerWithEmail(String email, String password) async {
     try {
       await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      await UserService.createUserProfileIfNotExists();
       return null;
     } on FirebaseAuthException catch (e) {
       return e.message;
@@ -19,6 +21,7 @@ class AuthService {
   static Future<String?> signInWithEmail(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
+      await UserService.createUserProfileIfNotExists();
       return null;
     } on FirebaseAuthException catch (e) {
       return e.message;
@@ -38,6 +41,7 @@ class AuthService {
       );
 
       await _auth.signInWithCredential(credential);
+      await UserService.createUserProfileIfNotExists(); // ✅
       return null;
     } catch (e) {
       return "Lỗi Google: $e";
@@ -53,10 +57,7 @@ class AuthService {
         final credential = FacebookAuthProvider.credential(accessToken.token);
 
         await _auth.signInWithCredential(credential);
-
-        // Optional: lấy thông tin user nếu cần
-        final userData = await FacebookAuth.instance.getUserData();
-        print("Facebook user: $userData");
+        await UserService.createUserProfileIfNotExists(); // ✅
 
         return null;
       } else {
