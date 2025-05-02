@@ -11,19 +11,24 @@ import 'package:misoul_fixed_app/screens/therapy_chat_app.dart';
 import 'package:misoul_fixed_app/screens/time_up_screen.dart';
 import 'package:misoul_fixed_app/screens/scheduler_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: WidgetsFlutterBinding.ensureInitialized());
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   await dotenv.load(fileName: ".env");
   await Firebase.initializeApp();
-  runApp(MisoulApp());
 
-  Future.delayed(Duration(seconds: 3), () {
-    FlutterNativeSplash.remove(); // Tắt splash screen sau 3 giây
-  });
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug,
+    appleProvider: AppleProvider.debug,
+  );
+
+  FlutterNativeSplash.remove(); // ✅ Gọi sau khi setup xong
+  runApp(MisoulApp());
 }
 
 class MisoulApp extends StatelessWidget {

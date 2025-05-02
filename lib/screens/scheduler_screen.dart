@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:misoul_fixed_app/services/scheduler_service.dart';
 import 'package:misoul_fixed_app/screens/exercise_screen.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SchedulerScreen extends StatefulWidget {
   const SchedulerScreen({Key? key}) : super(key: key);
@@ -156,10 +158,17 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
       setState(() {
         aiResponse = response;
       });
+
+      // LƯU KẾT QUẢ VÀO SHARED PREFERENCES
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('today_exercises', jsonEncode(response));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi khi gọi API")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Lỗi khi gọi API")),
+      );
     }
   }
+
 
   Widget _buildRecommendationList() {
     final recommendations = aiResponse?["recommendations"] ?? [];
