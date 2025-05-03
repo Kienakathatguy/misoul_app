@@ -5,6 +5,9 @@
   import '../services/chat_service.dart';
   import 'therapy_chat_app.dart';
   import '../utils/time_manager.dart';
+  import '../services/chat_service_firebase.dart';
+  import 'package:cloud_firestore/cloud_firestore.dart';
+  import 'package:firebase_auth/firebase_auth.dart';
 
   class ChatbotScreen extends StatefulWidget {
     final int conversationId;
@@ -79,32 +82,62 @@
 
 
     Future<void> loadConversationHistory() async {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      List<Conversation> allConversations = [];
-      String? conversationsData = prefs.getString('conversations');
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
 
-      if (conversationsData != null) {
-        allConversations = (json.decode(conversationsData) as List)
-            .map((data) => Conversation.fromJson(data))
-            .toList();
-      }
+      final messagesRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('conversations')
+          .doc(widget.conversationId.toString())
+          .collection('messages')
+          .orderBy('timestamp', descending: false);
 
-      try {
-        currentConversation = allConversations.firstWhere((c) => c.id == widget.conversationId);
-      } catch (e) {
-        print("❌ Không tìm thấy cuộc trò chuyện với ID: ${widget.conversationId}");
-        return;
-      }
+      final snapshot = await messagesRef.get();
 
-      if (currentConversation != null) {
+      if (snapshot.docs.isNotEmpty) {
+        List<Map<String, dynamic>> firebaseMessages = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            "role": data['role'] ?? 'bot',
+            "text": data['text'] ?? '',
+          };
+        }).toList();
+
         setState(() {
-          messages = List.from(currentConversation!.messages.map((msg) => {
-            "role": msg["sender"] == "user" ? "user" : "bot",
-            "text": msg["message"]
-          }).toList());
+          messages = firebaseMessages;
         });
+      } else {
+        // Fallback: load from SharedPreferences
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        List<Conversation> allConversations = [];
+        String? conversationsData = prefs.getString('conversations');
+
+        if (conversationsData != null) {
+          allConversations = (json.decode(conversationsData) as List)
+              .map((data) => Conversation.fromJson(data))
+              .toList();
+        }
+
+        try {
+          currentConversation =
+              allConversations.firstWhere((c) => c.id == widget.conversationId);
+        } catch (e) {
+          print("❌ Không tìm thấy cuộc trò chuyện với ID: ${widget.conversationId}");
+          return;
+        }
+
+        if (currentConversation != null) {
+          setState(() {
+            messages = List.from(currentConversation!.messages.map((msg) => {
+              "role": msg["sender"] == "user" ? "user" : "bot",
+              "text": msg["message"]
+            }));
+          });
+        }
       }
     }
+
 
     Future<void> sendMessage() async {
       if (usedChatMinutesToday >= maxChatMinutesPerDay) {
@@ -126,12 +159,12 @@
       });
 
       _controller.clear();
+      await _saveConversation(role: "user", text: userMessage);
 
       Stopwatch stopwatch = Stopwatch()..start();
-
       var response = await ChatService.sendMessage(userMessage);
-
       stopwatch.stop();
+
       int secondsUsed = stopwatch.elapsed.inSeconds;
       int minutesUsed = (secondsUsed / 60).ceil();
       await saveChatTime(minutesUsed);
@@ -149,7 +182,7 @@
           });
         });
 
-        _saveConversation();
+        await _saveConversation(role: "bot", text: botMessage);
       } else {
         setState(() {
           messages.add({"role": "bot", "text": "Có lỗi xảy ra khi gửi tin nhắn."});
@@ -173,16 +206,20 @@
         });
       });
 
+      await _saveConversation(role: "user", text: response);
+
       if (response == "đồng ý") {
         var botResponse = await ChatService.sendMessage(response);
         if (botResponse.containsKey("response")) {
+          String botReply = botResponse["response"]["messages"][0];
           setState(() {
-            messages.add({"role": "bot", "text": botResponse["response"]["messages"][0]});
+            messages.add({"role": "bot", "text": botReply});
             currentConversation!.messages.add({
               "sender": "bot",
-              "message": botResponse["response"]["messages"][0],
+              "message": botReply,
             });
           });
+          await _saveConversation(role: "bot", text: botReply); // ✅ moved inside
         }
       } else {
         List<String> alternativeResponses = [
@@ -190,8 +227,8 @@
           "Bạn có muốn trò chuyện về điều gì khác không?",
           "Nếu có gì cần tâm sự, tôi luôn ở đây lắng nghe!"
         ];
-
         String botReply = (alternativeResponses..shuffle()).first;
+
         setState(() {
           messages.add({"role": "bot", "text": botReply});
           currentConversation!.messages.add({
@@ -199,30 +236,31 @@
             "message": botReply,
           });
         });
-      }
 
-      _saveConversation();
+        await _saveConversation(role: "bot", text: botReply); // ✅ moved inside
+      }
     }
 
-    Future<void> _saveConversation() async {
-      if (currentConversation == null) return;
 
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      List<Conversation> allConversations = [];
-      String? conversationsData = prefs.getString('conversations');
+    Future<void> _saveConversation({
+      required String role,
+      required String text,
+    }) async {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || currentConversation == null) return;
 
-      if (conversationsData != null) {
-        allConversations = (json.decode(conversationsData) as List)
-            .map((data) => Conversation.fromJson(data))
-            .toList();
-      }
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('conversations')
+          .doc(currentConversation!.id.toString())
+          .collection('messages');
 
-      int index = allConversations.indexWhere((c) => c.id == currentConversation!.id);
-      if (index != -1) {
-        allConversations[index] = currentConversation!;
-      }
-
-      prefs.setString('conversations', json.encode(allConversations.map((c) => c.toJson()).toList()));
+      await docRef.add({
+        'role': role,
+        'text': text,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
     }
 
     @override

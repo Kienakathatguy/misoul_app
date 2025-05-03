@@ -5,6 +5,8 @@ import 'dart:async';
 import 'chatbot_screen.dart';
 import 'time_up_screen.dart';
 import '../utils/time_manager.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class TherapyChatApp extends StatefulWidget {
   const TherapyChatApp({Key? key}) : super(key: key);
@@ -68,14 +70,21 @@ class _TherapyChatAppState extends State<TherapyChatApp> {
   double get progress => _secondsLeft / maxSeconds;
 
   Future<void> _loadConversations() async {
-    final prefs = await SharedPreferences.getInstance();
-    final conversationsJson = prefs.getString('conversations') ?? '[]';
-    final conversationsCount = prefs.getInt('conversationCount') ?? 0;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('conversations')
+        .orderBy('timestamp', descending: true)
+        .get();
 
     setState(() {
-      _conversationCount = conversationsCount;
-      final List<dynamic> conversationsList = jsonDecode(conversationsJson);
-      _conversations = conversationsList.map((json) => Conversation.fromJson(json)).toList();
+      _conversations = snapshot.docs.map((doc) {
+        return Conversation.fromJson(doc.data());
+      }).toList();
+      _conversationCount = _conversations.length;
     });
   }
 
@@ -87,29 +96,51 @@ class _TherapyChatAppState extends State<TherapyChatApp> {
     await prefs.setInt('conversationCount', _conversationCount);
   }
 
+  Future<void> _saveConversationToFirebase(Conversation conversation) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final conversationRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('conversations')
+        .doc(conversation.id.toString());
+
+    await conversationRef.set({
+      'title': conversation.title,
+      'messageCount': conversation.messageCount,
+      'mood': conversation.mood,
+      'moodColor': conversation.moodColor.value,
+      'timestamp': conversation.timestamp.toIso8601String(),
+    });
+  }
+
+
   void _createNewConversation() async {
     if (_secondsLeft <= 0) {
       _navigateToTimeUp();
       return;
     }
 
+    final newConversation = Conversation(
+      id: _conversationCount + 1,
+      title: "Cuộc trò chuyện ${_conversationCount + 1}",
+      messageCount: 0,
+      mood: "Mới",
+      moodColor: Colors.blue,
+      timestamp: DateTime.now(),
+      messages: [],
+    );
+
     setState(() {
       _conversationCount++;
-      _conversations.add(
-        Conversation(
-          id: _conversationCount,
-          title: "Cuộc trò chuyện $_conversationCount",
-          messageCount: 0,
-          mood: "Mới",
-          moodColor: Colors.blue,
-          timestamp: DateTime.now(),
-          messages: [],
-        ),
-      );
+      _conversations.add(newConversation);
     });
 
     await _saveConversations();
+    await _saveConversationToFirebase(newConversation);
   }
+
 
   void _navigateTo(BuildContext context, String route) {
     Navigator.pushReplacementNamed(context, route);
@@ -126,22 +157,25 @@ class _TherapyChatAppState extends State<TherapyChatApp> {
       MaterialPageRoute(
         builder: (context) => ChatbotScreen(
           conversationId: conversation.id,
-          onConversationUpdated: (updatedMessages) {
-            setState(() {
-              final index = _conversations.indexWhere((c) => c.id == conversation.id);
-              if (index != -1) {
-                _conversations[index] = Conversation(
-                  id: conversation.id,
-                  title: conversation.title,
-                  messageCount: updatedMessages.length,
-                  mood: conversation.mood,
-                  moodColor: conversation.moodColor,
-                  timestamp: updatedMessages.isNotEmpty ? DateTime.now() : conversation.timestamp,
-                  messages: updatedMessages,
-                );
-              }
-            });
-            _saveConversations();
+          onConversationUpdated: (updatedMessages) async {
+            final index = _conversations.indexWhere((c) => c.id == conversation.id);
+            if (index != -1) {
+              final updatedConversation = Conversation(
+                id: conversation.id,
+                title: conversation.title,
+                messageCount: updatedMessages.length,
+                mood: conversation.mood,
+                moodColor: conversation.moodColor,
+                timestamp: updatedMessages.isNotEmpty ? DateTime.now() : conversation.timestamp,
+                messages: updatedMessages,
+              );
+
+              setState(() {
+                _conversations[index] = updatedConversation;
+              });
+
+              await _saveConversationToFirebase(updatedConversation);
+            }
           },
         ),
       ),
