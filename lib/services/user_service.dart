@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class UserService {
   static final _firestore = FirebaseFirestore.instance;
 
-  // 📌 Tạo hồ sơ người dùng nếu chưa có
+  // Tạo hồ sơ người dùng nếu chưa có
   static Future<void> createUserProfileIfNotExists() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -23,7 +23,7 @@ class UserService {
     }
   }
 
-  // ✏️ Cập nhật tên và mục tiêu
+  // Cập nhật tên và mục tiêu
   static Future<void> updateUserProfile({String? displayName, String? goal}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -35,7 +35,7 @@ class UserService {
     await _firestore.collection('users').doc(user.uid).update(updates);
   }
 
-  // 📥 Lấy thông tin người dùng
+  // Lấy thông tin người dùng
   static Future<Map<String, dynamic>?> getUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;

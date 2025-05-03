@@ -1,235 +1,143 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
-class IMUScreen extends StatefulWidget {
-  const IMUScreen({Key? key}) : super(key: key);
+class IMUScreen extends StatelessWidget {
+  final String userId; // ID của người nhận (patient)
+  const IMUScreen({required this.userId, super.key});
 
-  @override
-  State<IMUScreen> createState() => _IMUScreenState();
-}
-
-class _IMUScreenState extends State<IMUScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final TextEditingController _patientIdController = TextEditingController();
-
-  String _currentPatientId = '';
-  bool _isConnected = false;
-  bool _isSending = false;
-
-  final String _caregiverId = 'caregiver01';
-  final String _caregiverName = 'Người chăm sóc';
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeFirebase();
-  }
-
-  Future<void> _initializeFirebase() async {
-    await Firebase.initializeApp();
-  }
-
-  Future<void> _sendMissYouMessage() async {
-    if (!_isConnected) return;
-
-    setState(() => _isSending = true);
-
+  void _sendResponse(BuildContext context, String senderId, String responseText) async {
     try {
-      await _firestore.collection('imuMessages').add({
-        'senderId': _caregiverId,
-        'receiverId': _currentPatientId,
-        'messageType': 'miss_you',
-        'messageText': '$_caregiverName đã gửi lời thương yêu tới bạn',
+      await FirebaseFirestore.instance.collection('imuResponses').add({
+        'senderId': userId,
+        'receiverId': senderId,
+        'responseText': responseText,
         'timestamp': FieldValue.serverTimestamp(),
-        'read': false,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã gửi "I miss you" thành công!'),
-          backgroundColor: Colors.green,
-        ),
+        SnackBar(content: Text('Đã gửi phản hồi: $responseText')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isSending = false);
-    }
-  }
-
-  void _connectToPatient() async {
-    final patientId = _patientIdController.text.trim();
-    if (patientId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng nhập ID của patient'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final snapshot = await _firestore.collection('users').where('id', isEqualTo: patientId).get();
-
-    if (snapshot.docs.isNotEmpty) {
-      final userData = snapshot.docs.first.data();
-      if (userData['userType'] == 'patient') {
-        setState(() {
-          _isConnected = true;
-          _currentPatientId = patientId;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã kết nối với patient $patientId'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('ID này không phải của patient'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm thấy patient với ID này'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Lỗi gửi phản hồi: $e')),
       );
     }
-  }
-
-  @override
-  void dispose() {
-    _patientIdController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFDF9FC),
       appBar: AppBar(
-        title: const Text('I MISS U - Caregiver'),
-        backgroundColor: Colors.pink,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              setState(() {
-                _isConnected = false;
-                _currentPatientId = '';
-              });
-            },
-            tooltip: 'Ngắt kết nối',
-          ),
-        ],
+        backgroundColor: const Color(0xFFFF4D91),
+        title: const Text('I MISS U', style: TextStyle(color: Colors.white)),
+        centerTitle: true,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!_isConnected) ...[
-                const Text(
-                  'Kết nối với bệnh nhân',
-                  style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20.0),
-                TextField(
-                  controller: _patientIdController,
-                  decoration: InputDecoration(
-                    hintText: 'Nhập ID bệnh nhân (ví dụ: patient01)',
-                    fillColor: Colors.white,
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.0),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20.0),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 15.0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                    ),
-                  ),
-                  onPressed: _connectToPatient,
-                  child: const Text('Kết nối'),
-                ),
-              ] else ...[
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            color: const Color(0xFFFF4D91),
+            child: Column(
+              children: const [
+                Icon(Icons.favorite, size: 40, color: Colors.white),
+                SizedBox(height: 10),
+                Text('I miss you',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                SizedBox(height: 10),
                 Text(
-                  'Đã kết nối với Patient ID: $_currentPatientId',
-                  style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+                  'Có những người đang gửi lời yêu thương tới bạn',
+                  style: TextStyle(color: Colors.white),
                   textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40.0),
-                GestureDetector(
-                  onTap: _isSending ? null : _sendMissYouMessage,
-                  child: Container(
-                    width: 200.0,
-                    height: 200.0,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.pink.withOpacity(0.3),
-                          spreadRadius: 5,
-                          blurRadius: 7,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: _isSending
-                          ? const CircularProgressIndicator(color: Colors.pink)
-                          : const Icon(
-                        Icons.favorite,
-                        color: Colors.pink,
-                        size: 100.0,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20.0),
-                const Text(
-                  'Chạm vào trái tim để gửi "I miss you"',
-                  style: TextStyle(fontSize: 16.0),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40.0),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 15.0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                    ),
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isConnected = false;
-                      _currentPatientId = '';
-                    });
-                  },
-                  child: const Text('Ngắt kết nối'),
                 ),
               ],
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Hôm nay',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('imuMessages')
+                  .where('receiverId', isEqualTo: userId)
+                  .orderBy('timestamp', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+                final messages = snapshot.data!.docs;
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final data = messages[index].data() as Map<String, dynamic>;
+                    final senderName = data['senderName'] ?? 'Người thân';
+                    final messageText = data['messageText'] ?? '';
+                    final senderId = data['senderId'];
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4D91),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.favorite, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  messageText,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                ),
+                                onPressed: () => _sendResponse(context, senderId, "I'm Okay 😊"),
+                                child: const Text("I'm Okay 😊", style: TextStyle(color: Colors.black)),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: const Color(0xFFB288F2),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                ),
+                                onPressed: () => _sendResponse(context, senderId, "I need you 😢"),
+                                child: const Text("I need you 😢", style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

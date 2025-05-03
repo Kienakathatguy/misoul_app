@@ -13,6 +13,7 @@ import 'package:misoul_fixed_app/screens/scheduler_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 Future<void> main() async {
@@ -49,7 +50,12 @@ class MisoulApp extends StatelessWidget {
         '/healing': (context) => HealingScreen(),
         '/login': (context) => LoginScreen(),
         '/chatbot': (context) => TherapyChatApp(),
-        '/imu': (context) => const IMUScreen(),
+        '/imu': (context) {
+          final userId = FirebaseAuth.instance.currentUser?.uid;
+          if (userId == null) return const Scaffold(body: Center(child: Text("Không tìm thấy user")));
+
+          return IMUScreen(userId: userId);
+        },
         '/scheduler': (context) => SchedulerScreen(),
         '/mood_tracker': (context) => MoodTrackerScreen(),
         '/settings': (context) => const PlaceholderScreen(title: 'Cài đặt'),
