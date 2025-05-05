@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../models/mood.dart';
 import '../services/user_mood_service.dart';
 
-
 class MoodTrackerScreen extends StatefulWidget {
   @override
   _MoodTrackerScreenState createState() => _MoodTrackerScreenState();
@@ -13,17 +12,9 @@ class MoodTrackerScreen extends StatefulWidget {
 
 class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTickerProviderStateMixin {
   DateTime selectedDate = DateTime.now();
-  Map<int, Mood> moodHistory = {
-    1: Mood.veryHappy,
-    2: Mood.neutral,
-    3: Mood.sad,
-    4: Mood.verySad,
-    5: Mood.veryHappy,
-    6: Mood.happy,
-  };
-
+  Map<String, Mood> moodHistory = {};
   TabController? _tabController;
-  String _viewType = "Tháng"; // Default view is month
+  String _viewType = "Tháng";
 
   final List<Mood> moodOptions = [
     Mood.veryHappy_custom,
@@ -37,7 +28,7 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _tabController!.index = 1; // Start with "Tháng" selected
+    _tabController!.index = 1;
     _tabController!.addListener(() {
       setState(() {
         switch (_tabController!.index) {
@@ -58,17 +49,129 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
 
   Future<void> _loadMonthMood() async {
     final moodMap = await UserMoodService.loadMonthMoods(selectedDate);
-
     setState(() {
       moodHistory = {};
       moodMap.forEach((dateStr, moodIndex) {
-        final date = DateTime.parse(dateStr);
-        moodHistory[date.day] = moodOptions.firstWhere(
+        moodHistory[dateStr] = moodOptions.firstWhere(
               (m) => m.index == moodIndex,
           orElse: () => Mood.neutral_custom,
         );
       });
     });
+  }
+
+  void addMood(Mood mood) async {
+    final now = DateTime.now();
+    if (selectedDate.year == now.year && selectedDate.month == now.month) {
+      setState(() {
+        final key = DateFormat('yyyy-MM-dd').format(now);
+        moodHistory[key] = mood;
+      });
+      await UserMoodService.saveTodayMood(mood.index);
+    }
+  }
+
+  void changeMonth(int offset) {
+    setState(() {
+      selectedDate = DateTime(selectedDate.year, selectedDate.month + offset);
+      _loadMonthMood();
+    });
+  }
+
+  List<int> _getChartData(String mode) {
+    final now = DateTime.now();
+
+    if (mode == "Ngày") {
+      final todayMood = moodHistory[now.day];
+      return todayMood != null ? [todayMood.index + 1] : [3];
+    }
+
+    if (mode == "Tuần") {
+      DateTime startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+      return List.generate(7, (i) {
+        final date = startOfWeek.add(Duration(days: i));
+        final mood = moodHistory[date.day];
+        return mood?.index != null ? mood!.index + 1 : 3;
+      });
+    }
+
+    if (mode == "Tháng") {
+      return List.generate(DateTime(now.year, now.month + 1, 0).day, (i) {
+        final mood = moodHistory[i + 1];
+        return mood?.index != null ? mood!.index + 1 : 3;
+      });
+    }
+
+    if (mode == "Năm") {
+      return List.generate(12, (i) {
+        int sum = 0, count = 0;
+        for (int d = 1; d <= 31; d++) {
+          try {
+            final date = DateTime(now.year, i + 1, d);
+            final mood = moodHistory[date.day];
+            if (mood != null) {
+              sum += mood.index + 1;
+              count++;
+            }
+          } catch (_) {}
+        }
+        return count > 0 ? (sum ~/ count) : 3;
+      });
+    }
+
+    return [3];
+  }
+
+  void _showMoodChart() {
+    String selectedMode = "Tuần";
+    showDialog(
+      context: context,
+      builder: (context) {
+        List<int> moodData = _getChartData(selectedMode);
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Text("Biểu đồ cảm xúc - "),
+                  DropdownButton<String>(
+                    value: selectedMode,
+                    underline: Container(),
+                    items: ["Ngày", "Tuần", "Tháng", "Năm"].map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      setState(() {
+                        selectedMode = newValue!;
+                        moodData = _getChartData(selectedMode);
+                      });
+                    },
+                  ),
+                ],
+              ),
+              content: Container(
+                height: 300,
+                width: 300,
+                child: MoodChart(moodData: moodData, viewType: selectedMode),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("Đóng"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _navigateTo(BuildContext context, String route) {
+    Navigator.pushReplacementNamed(context, route);
   }
 
   @override
@@ -77,67 +180,17 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
     super.dispose();
   }
 
-  // Update the addMood method to only set mood for the current day
-  void addMood(Mood mood) async {
-    final now = DateTime.now();
-
-    if (selectedDate.year == now.year && selectedDate.month == now.month) {
-      setState(() {
-        moodHistory[now.day] = mood;
-      });
-
-      await UserMoodService.saveTodayMood(mood.index); // ✅ Lưu mood vào Firestore
-    }
-  }
-
-
-  void changeMonth(int offset) {
-    setState(() {
-      selectedDate = DateTime(selectedDate.year, selectedDate.month + offset);
-    });
-  }
-
-  void _showMoodChart() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Mood Chart"),
-          content: Container(
-            height: 300,
-            width: 300,
-            child: MoodChart(moodData: moodHistory.values.map((m) => m.index + 1).toList()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Đóng"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Navigate to different screens
-  void _navigateTo(BuildContext context, String route) {
-    Navigator.pushReplacementNamed(context, route);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(0),
-        child: AppBar(
-          backgroundColor: Color(0xFFFF4D79),
-          elevation: 0,
-        ),
+        child: AppBar(backgroundColor: Color(0xFFFF4D79), elevation: 0),
       ),
       body: Column(
         children: [
-          // Top pink section with status bar time
+          // Header
           Container(
             padding: EdgeInsets.fromLTRB(20, 10, 20, 30),
             decoration: BoxDecoration(
@@ -146,7 +199,6 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
             ),
             child: Column(
               children: [
-                // Status bar time
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -166,12 +218,10 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
                   ],
                 ),
                 SizedBox(height: 20),
-
-                // Title with back button and home button
                 Row(
                   children: [
                     GestureDetector(
-                      onTap: () => Navigator.pop(context), // Make back button work
+                      onTap: () => Navigator.pop(context),
                       child: Container(
                         width: 40,
                         height: 40,
@@ -185,14 +235,9 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
                     SizedBox(width: 15),
                     Text(
                       'Theo dõi cảm xúc',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     Spacer(),
-                    // Added home button
                     IconButton(
                       icon: Icon(Icons.home, color: Colors.white),
                       onPressed: () => _navigateTo(context, '/home'),
@@ -203,105 +248,63 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
                     ),
                   ],
                 ),
-
                 SizedBox(height: 20),
-
-                // Mood selection
                 Container(
                   padding: EdgeInsets.symmetric(vertical: 20, horizontal: 15),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: moodOptions.map((mood) {
-                          return GestureDetector(
-                            onTap: () => addMood(mood),
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: mood.color,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: mood.isCustomEmoji
-                                    ? Image.asset(mood.emojiPath!, width: 30, height: 30)
-                                    : Text(mood.emoji, style: TextStyle(fontSize: 24)),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: moodOptions.map((mood) {
+                      return GestureDetector(
+                        onTap: () => addMood(mood),
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(color: mood.color, shape: BoxShape.circle),
+                          child: Center(
+                            child: mood.isCustomEmoji
+                                ? Image.asset(mood.emojiPath!, width: 30, height: 30)
+                                : Text(mood.emoji, style: TextStyle(fontSize: 24)),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
-
                 SizedBox(height: 15),
-
-                // How do you feel today text
                 Text(
                   "Hôm nay bạn cảm thấy như thế nào",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
           ),
-
           SizedBox(height: 20),
-
-          // Tab selector (Week, Month, Year) - Made bigger with 1/3 indicator
           Container(
             margin: EdgeInsets.symmetric(horizontal: 20),
-            height: 50, // Increased height
-            decoration: BoxDecoration(
-              color: Color(0xFFFF4D79),
-              borderRadius: BorderRadius.circular(30),
-            ),
+            height: 50,
+            decoration: BoxDecoration(color: Color(0xFFFF4D79), borderRadius: BorderRadius.circular(30)),
             child: TabBar(
               controller: _tabController,
-              // Custom indicator that covers 1/3 of the tab
-              indicator: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab, // Makes indicator cover the tab
-              labelPadding: EdgeInsets.zero, // Remove padding to ensure indicator covers 1/3
+              indicator: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelPadding: EdgeInsets.zero,
               labelColor: Color(0xFFFF4D79),
               unselectedLabelColor: Colors.white,
-              labelStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), // Bigger text
-              tabs: [
-                Tab(text: "Tuần"),
-                Tab(text: "Tháng"),
-                Tab(text: "Năm"),
-              ],
+              labelStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              tabs: [Tab(text: "Tuần"), Tab(text: "Tháng"), Tab(text: "Năm")],
             ),
           ),
-
           SizedBox(height: 20),
-
-          // Month navigation with animation
           AnimatedSwitcher(
             duration: Duration(milliseconds: 300),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: Offset(0.1, 0.0),
-                    end: Offset(0.0, 0.0),
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
-            },
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(begin: Offset(0.1, 0.0), end: Offset(0.0, 0.0)).animate(animation),
+                child: child,
+              ),
+            ),
             child: Row(
               key: ValueKey<DateTime>(selectedDate),
               mainAxisAlignment: MainAxisAlignment.center,
@@ -310,13 +313,7 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
                   icon: Icon(Icons.chevron_left, size: 30, color: Colors.black),
                   onPressed: () => changeMonth(-1),
                 ),
-                Text(
-                  "Tháng ${selectedDate.month} ${selectedDate.year}",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text("Tháng ${selectedDate.month} ${selectedDate.year}", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 IconButton(
                   icon: Icon(Icons.chevron_right, size: 30, color: Colors.black),
                   onPressed: () => changeMonth(1),
@@ -324,8 +321,6 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
               ],
             ),
           ),
-
-          // Calendar with animation
           Expanded(
             child: AnimatedSwitcher(
               duration: Duration(milliseconds: 300),
@@ -336,44 +331,19 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
               ),
             ),
           ),
-
-          // Bottom navigation bar
           Container(
             height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 5,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
+            decoration: BoxDecoration(color: Colors.white, boxShadow: [
+              BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, -2)),
+            ]),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // I MISS YOU button (replaced home button)
-                IconButton(
-                  icon: Icon(Icons.favorite_border, color: Colors.grey),
-                  onPressed: () => _navigateTo(context, '/imu'),
-                ),
-                // Chatbot button
-                IconButton(
-                  icon: Icon(Icons.chat_bubble_outline, color: Colors.grey),
-                  onPressed: () => _navigateTo(context, '/chatbot'),
-                ),
-                SizedBox(width: 50), // Space for FAB
-                // Healing with music button
-                IconButton(
-                  icon: Icon(Icons.music_note, color: Colors.grey),
-                  onPressed: () => _navigateTo(context, '/healing'),
-                ),
-                // Voice recording button
-                IconButton(
-                  icon: Icon(Icons.mic, color: Colors.grey),
-                  onPressed: () => _navigateTo(context, '/voice_recorder'),
-                ),
+                IconButton(icon: Icon(Icons.favorite_border, color: Colors.grey), onPressed: () => _navigateTo(context, '/imu')),
+                IconButton(icon: Icon(Icons.chat_bubble_outline, color: Colors.grey), onPressed: () => _navigateTo(context, '/chatbot')),
+                SizedBox(width: 50),
+                IconButton(icon: Icon(Icons.music_note, color: Colors.grey), onPressed: () => _navigateTo(context, '/healing')),
+                IconButton(icon: Icon(Icons.mic, color: Colors.grey), onPressed: () => _navigateTo(context, '/voice_recorder')),
               ],
             ),
           ),
@@ -386,11 +356,10 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
         child: FloatingActionButton(
           backgroundColor: Color(0xFF1A1A2E),
           child: Icon(Icons.emoji_emotions, color: Colors.white),
-          onPressed: () => {}, // Current screen (mood tracker)
+          onPressed: () => {},
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }
-

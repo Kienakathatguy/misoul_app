@@ -4,26 +4,37 @@ import 'package:firebase_auth/firebase_auth.dart';
 class UserService {
   static final _firestore = FirebaseFirestore.instance;
 
-  // Tạo hồ sơ người dùng nếu chưa có
+  // Tạo hồ sơ người dùng nếu chưa có, và đảm bảo 'role' được lấy từ Firestore
   static Future<void> createUserProfileIfNotExists() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = _firestore.collection('users').doc(user.uid);
-    final snapshot = await doc.get();
+    final userDocRef = _firestore.collection('users').doc(user.uid);
+    final snapshot = await userDocRef.get();
 
     if (!snapshot.exists) {
-      await doc.set({
+      // Hồ sơ chưa có → kiểm tra role (đã được lưu từ lúc register)
+      final serverUserData = await userDocRef.get();
+      final role = serverUserData.data()?['role'] ?? 'Người bệnh';
+
+      await userDocRef.set({
         'email': user.email,
         'createdAt': FieldValue.serverTimestamp(),
         'displayName': user.displayName ?? '',
         'goal': '',
         'avatarUrl': '',
+        'role': role,
       });
+    } else {
+      // Nếu đã có hồ sơ → đảm bảo 'role' có trong đó
+      final data = snapshot.data();
+      if (data != null && !data.containsKey('role')) {
+        final roleFromRoot = (await userDocRef.get()).data()?['role'] ?? 'Người bệnh';
+        await userDocRef.update({'role': roleFromRoot});
+      }
     }
   }
 
-  // Cập nhật tên và mục tiêu
   static Future<void> updateUserProfile({String? displayName, String? goal}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -35,7 +46,6 @@ class UserService {
     await _firestore.collection('users').doc(user.uid).update(updates);
   }
 
-  // Lấy thông tin người dùng
   static Future<Map<String, dynamic>?> getUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;

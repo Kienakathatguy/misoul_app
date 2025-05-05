@@ -5,7 +5,8 @@ import 'package:misoul_fixed_app/screens/home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-
+import 'package:misoul_fixed_app/screens/role_selection_screen.dart';
+import 'package:misoul_fixed_app/services/user_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,12 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
           password: _passwordController.text.trim(),
         );
 
-        // ✅ Chuyển hướng sang HomeScreen sau khi đăng nhập
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+        await navigateToHomeByRole();
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Lỗi đăng nhập: $e")),
@@ -49,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
+
 
 
   Future<void> _loginWithGoogle() async {
@@ -63,13 +60,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await FirebaseAuth.instance.signInWithCredential(credential);
+      await UserService.createUserProfileIfNotExists();
 
-      // ✅ Chuyển đến HomeScreen sau khi đăng nhập thành công
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      await navigateToHomeByRole();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đăng nhập Google thất bại")),
@@ -77,20 +70,15 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
   Future<void> _loginWithFacebook() async {
     try {
       final result = await FacebookAuth.instance.login();
       if (result.status == LoginStatus.success) {
         final credential = FacebookAuthProvider.credential(result.accessToken!.token);
         await FirebaseAuth.instance.signInWithCredential(credential);
+        await UserService.createUserProfileIfNotExists();
 
-        // ✅ Chuyển đến HomeScreen sau khi đăng nhập thành công
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+        await navigateToHomeByRole();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,6 +86,21 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     }
   }
+
+
+  Future<void> navigateToHomeByRole() async {
+    final profile = await UserService.getUserProfile();
+    final role = profile?['role'] ?? 'Người dùng';
+
+    if (!mounted) return;
+
+    if (role == 'Người thân') {
+      Navigator.pushReplacementNamed(context, '/home_family');
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+
 
 
   @override
@@ -213,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(
                     onPressed: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
                     ),
                     child: const Text("Đăng ký ngay"),
                   ),

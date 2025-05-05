@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/mood.dart';
 
 class MoodCalendar extends StatelessWidget {
   final DateTime selectedDate;
-  final Map<int, Mood> moodHistory;
+  final Map<String, Mood> moodHistory;
 
   MoodCalendar({Key? key, required this.selectedDate, required this.moodHistory}) : super(key: key);
 
@@ -53,7 +54,9 @@ class MoodCalendar extends StatelessWidget {
             itemCount: daysInMonth,
             itemBuilder: (context, index) {
               int day = index + 1;
-              Mood? mood = moodHistory[day];
+              DateTime thisDay = DateTime(selectedDate.year, selectedDate.month, day);
+              String key = DateFormat('yyyy-MM-dd').format(thisDay);
+              Mood? mood = moodHistory[key];
 
               // Only show emoji for the current day if it has a mood
               bool showEmoji = isSameMonth && day == currentDay && mood != null;
@@ -73,7 +76,7 @@ class MoodCalendar extends StatelessWidget {
                           ? (mood.isCustomEmoji
                           ? Image.asset(mood.emojiPath!, width: 24, height: 24)
                           : Text(mood.emoji, style: TextStyle(fontSize: 20)))
-                          : Text('${day}', style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
+                          : Text('$day', style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
                     ),
                   ),
                 ],
@@ -85,4 +88,3 @@ class MoodCalendar extends StatelessWidget {
     );
   }
 }
-

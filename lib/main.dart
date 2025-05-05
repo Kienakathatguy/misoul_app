@@ -5,12 +5,12 @@ import 'package:misoul_fixed_app/screens/home_screen.dart';
 import 'package:misoul_fixed_app/screens/healing_screen.dart';
 import 'package:misoul_fixed_app/screens/imu_screen.dart';
 import 'package:misoul_fixed_app/screens/login_screen.dart';
-import 'package:misoul_fixed_app/screens/voice_recorder.dart';
 import 'package:misoul_fixed_app/screens/mood_tracker.dart';
 import 'package:misoul_fixed_app/screens/therapy_chat_app.dart';
 import 'package:misoul_fixed_app/screens/time_up_screen.dart';
 import 'package:misoul_fixed_app/screens/scheduler_screen.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:misoul_fixed_app/screens/role_selection_screen.dart';
+import 'package:misoul_fixed_app/screens/home_for_family_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -46,6 +46,9 @@ class MisoulApp extends StatelessWidget {
       ),
       initialRoute: '/login',
       routes: {
+        '/register': (context) => const RoleSelectionScreen(),
+        'role_selection': (context) => const RoleSelectionScreen(),
+        '/home_family': (context) => const HomeForFamilyScreen(),
         '/home': (context) => const HomeScreen(),
         '/healing': (context) => HealingScreen(),
         '/login': (context) => LoginScreen(),

@@ -3,7 +3,8 @@ import 'package:misoul_fixed_app/screens/login_screen.dart';
 import 'package:misoul_fixed_app/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final String role;
+  const RegisterScreen({super.key, required this.role});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -29,13 +30,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final message = await AuthService.registerWithEmail(
         _emailController.text.trim(),
         _passwordController.text.trim(),
+        widget.role,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message ?? "Đăng ký thành công")),
-      );
+      if (message == null) {
+        // Điều hướng dựa trên vai trò
+        if (widget.role == "Người thân") {
+          Navigator.pushReplacementNamed(context, '/home_family');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
     }
   }
+
 
   Future<void> _signInWithGoogle() async {
     final message = await AuthService.signInWithGoogle();
@@ -109,8 +119,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
 
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    "Vai trò: ${widget.role}",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Row(
