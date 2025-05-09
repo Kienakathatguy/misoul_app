@@ -11,6 +11,7 @@ import '../models/mood.dart';
 import '../services/user_mood_service.dart';
 import '../services/user_service.dart';
 import '../utils/time_manager.dart';
+import '../screens/connected_family_screen.dart';
 import 'exercise_screen.dart';
 
 Mood? _todayMood;
@@ -83,10 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final data = prefs.getString('today_exercises');
     if (data != null) {
       final decoded = jsonDecode(data);
-      final list = List<Map<String, dynamic>>.from(decoded['recommendations'] ?? []);
-      setState(() {
-        todayExercises = list;
-      });
+      if (decoded is Map<String, dynamic>) {
+        final list = List<Map<String, dynamic>>.from(decoded['recommendations'] ?? []);
+        setState(() {
+          todayExercises = list;
+        });
+      }
     }
   }
 
@@ -117,12 +120,17 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Cập nhật hồ sơ"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Tên hiển thị")),
-            TextField(controller: goalController, decoration: const InputDecoration(labelText: "Mục tiêu cá nhân")),
-          ],
+        content: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: "Tên hiển thị")),
+                TextField(controller: goalController, decoration: const InputDecoration(labelText: "Mục tiêu cá nhân")),
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -142,18 +150,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateTo(BuildContext context, String route) {
-    Navigator.pushNamed(context, route);
+    if (Navigator.canPop(context)) {
+      Navigator.pushNamed(context, route);
+    } else {
+      Navigator.of(context).pushNamed(route);
+    }
   }
 
   Widget _buildUserHeader() {
     final today = DateTime.now();
+    final mediaQuery = MediaQuery.of(context);
     final weekday = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][today.weekday % 7];
     final formattedDate = "$weekday, ${today.day} tháng ${today.month} ${today.year}";
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.30,
+      width: double.infinity,
+      // Remove fixed height constraints and let content determine size
       padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 24,
+        top: mediaQuery.padding.top + 16, // Reduced from 24 to 16
         left: 20,
         right: 20,
         bottom: 20,
@@ -166,8 +181,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // Make column take minimum required space
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Align(
+            alignment: Alignment.topRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildRequestButton(
+                  icon: Icons.group_add,
+                  tooltip: "Lời mời kết nối",
+                  collection: 'connectionRequests',
+                  route: '/connection_requests',
+                ),
+                const SizedBox(width: 8),
+                _buildRequestButton(
+                  icon: Icons.notifications_outlined,
+                  tooltip: "Yêu cầu xem biểu đồ cảm xúc",
+                  collection: 'emotionViewRequests',
+                  route: '/emotion_requests',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
             formattedDate,
             style: const TextStyle(
@@ -176,22 +214,22 @@ class _HomeScreenState extends State<HomeScreen> {
               fontWeight: FontWeight.w400,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12), // Reduced from 16 to 12
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
                 onTap: _pickAndUploadAvatar,
                 child: CircleAvatar(
-                  radius: 36,
+                  radius: 32, // Reduced from 36 to 32
                   backgroundColor: Colors.white,
                   backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                   child: avatarUrl.isEmpty
-                      ? const Icon(Icons.person, size: 36, color: Colors.grey)
+                      ? const Icon(Icons.person, size: 32, color: Colors.grey)
                       : null,
                 ),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16), // Reduced from 20 to 16
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,22 +237,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       "Xin chào, ${displayName.isNotEmpty ? displayName : "User"}",
                       style: const TextStyle(
-                        fontSize: 26,
+                        fontSize: 22, // Reduced from 26 to 22
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                        height: 1.3,
+                        height: 1.2, // Reduced from 1.3 to 1.2
                       ),
+                      overflow: TextOverflow.ellipsis, // Add this to prevent text overflow
+                      maxLines: 1, // Limit to 1 line
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8), // Reduced from 10 to 8
                     Row(
                       children: const [
-                        Icon(Icons.favorite, color: Colors.white, size: 20),
-                        SizedBox(width: 6),
-                        Text("80%", style: TextStyle(color: Colors.white, fontSize: 16)),
-                        SizedBox(width: 12),
-                        Icon(Icons.emoji_emotions_outlined, color: Colors.white, size: 20),
-                        SizedBox(width: 6),
-                        Text("Hạnh phúc", style: TextStyle(color: Colors.white, fontSize: 16)),
+                        Icon(Icons.favorite, color: Colors.white, size: 18), // Reduced from 20 to 18
+                        SizedBox(width: 4), // Reduced from 6 to 4
+                        Text("80%", style: TextStyle(color: Colors.white, fontSize: 14)), // Reduced from 16 to 14
+                        SizedBox(width: 8), // Reduced from 12 to 8
+                        Icon(Icons.emoji_emotions_outlined, color: Colors.white, size: 18), // Reduced from 20 to 18
+                        SizedBox(width: 4), // Reduced from 6 to 4
+                        Text("Hạnh phúc", style: TextStyle(color: Colors.white, fontSize: 14)), // Reduced from 16 to 14
                       ],
                     ),
                   ],
@@ -222,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               IconButton(
                 onPressed: _editProfileDialog,
-                icon: const Icon(Icons.edit, color: Colors.white, size: 22),
+                icon: const Icon(Icons.edit, color: Colors.white, size: 20), // Reduced from 22 to 20
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -230,6 +270,49 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRequestButton({
+    required IconData icon,
+    required String tooltip,
+    required String collection,
+    required String route,
+  }) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection(collection)
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        int count = snapshot.data!.docs.length;
+        return Stack(
+          children: [
+            IconButton(
+              icon: Icon(icon, color: Colors.white),
+              tooltip: tooltip,
+              onPressed: () => Navigator.pushNamed(context, route),
+            ),
+            if (count > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: CircleAvatar(
+                  radius: 7,
+                  backgroundColor: Colors.red,
+                  child: Text(
+                    count.toString(),
+                    style: const TextStyle(color: Colors.white, fontSize: 10),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -246,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: onTap,
       child: Container(
         width: 160,
+        height: 160,
         margin: const EdgeInsets.only(right: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -279,6 +363,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 subtitle,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ]
           ],
@@ -354,7 +440,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildChatbotCard() {
     return _buildFeatureCard(
       title: "MiBot",
-      subtitle: "Còn $chatbotMinutesLeft’",
+      subtitle: "Còn $chatbotMinutesLeft'",
       icon: Icons.chat_bubble_outline,
       bgColor: const Color(0xFFFF8FA5),
       onTap: () => _navigateTo(context, '/chatbot'),
@@ -371,16 +457,66 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildConnectCard() {
+    return _buildFeatureCard(
+      title: "Người thân",
+      subtitle: _todayMood?.name ?? 'Chưa có',
+      icon: Icons.group,
+      bgColor: Colors.orangeAccent,
+      onTap: () => Navigator.pushNamed(context, '/connected_family'),
+    );
+  }
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Xác nhận đăng xuất"),
+        content: const Text("Bạn có chắc chắn muốn đăng xuất không?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Hủy"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop(); // Đóng dialog
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+            ),
+            child: const Text("Đăng xuất"),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F1FF),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.black),
+            tooltip: "Đăng xuất",
+            onPressed: () => _confirmLogout(context),
+          ),
+        ],
+      ),
       body: ListView(
         children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.25,
-            child: _buildUserHeader(),
-          ),
+          _buildUserHeader(),
           const SizedBox(height: 20),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -409,6 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   bgColor: Colors.blueAccent.shade100,
                   onTap: () => _navigateTo(context, '/healing'),
                 ),
+                _buildConnectCard(),
               ],
             ),
           ),

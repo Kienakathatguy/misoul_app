@@ -6,11 +6,15 @@ class UserMoodService {
   static final _auth = FirebaseAuth.instance;
 
   static Future<void> saveTodayMood(int moodIndex) async {
+    final now = DateTime.now();
+    await saveMoodForDate(now, moodIndex);
+  }
+
+  static Future<void> saveMoodForDate(DateTime date, int moodIndex) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
-    final today = DateTime.now();
-    final moodDate = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+    final moodDate = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
 
     await _firestore
         .collection('users')
@@ -19,7 +23,7 @@ class UserMoodService {
         .doc(moodDate)
         .set({
       'moodIndex': moodIndex,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': Timestamp.fromDate(date),
     });
   }
 
@@ -43,7 +47,6 @@ class UserMoodService {
     return null;
   }
 
-
   static Future<Map<String, int>> loadMonthMoods(DateTime date) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return {};
@@ -55,8 +58,8 @@ class UserMoodService {
         .collection('users')
         .doc(uid)
         .collection('moods')
-        .where('createdAt', isGreaterThanOrEqualTo: start)
-        .where('createdAt', isLessThanOrEqualTo: end)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .get();
 
     Map<String, int> moods = {};

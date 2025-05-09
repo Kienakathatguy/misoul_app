@@ -11,6 +11,10 @@ import 'package:misoul_fixed_app/screens/time_up_screen.dart';
 import 'package:misoul_fixed_app/screens/scheduler_screen.dart';
 import 'package:misoul_fixed_app/screens/role_selection_screen.dart';
 import 'package:misoul_fixed_app/screens/home_for_family_screen.dart';
+import 'package:misoul_fixed_app/screens/connection_requests_screen.dart';
+import 'package:misoul_fixed_app/screens/emotion_requests_screen.dart';
+import 'package:misoul_fixed_app/screens/connected_family_screen.dart';
+import 'package:misoul_fixed_app/screens/emotion_chart_family_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -50,6 +54,16 @@ class MisoulApp extends StatelessWidget {
         'role_selection': (context) => const RoleSelectionScreen(),
         '/home_family': (context) => const HomeForFamilyScreen(),
         '/home': (context) => const HomeScreen(),
+        '/connection_requests': (context) => const ConnectionRequestsScreen(),
+        '/emotion_requests': (context) => const EmotionRequestsScreen(),
+        '/connected_family': (context) => const ConnectedFamilyScreen(),
+        '/emotion_chart': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return EmotionChartScreen(
+            userId: args['userId'],
+            timeframe: args['timeframe'],
+          );
+        },
         '/healing': (context) => HealingScreen(),
         '/login': (context) => LoginScreen(),
         '/chatbot': (context) => TherapyChatApp(),

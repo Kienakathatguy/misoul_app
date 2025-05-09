@@ -4,6 +4,9 @@ import 'package:misoul_fixed_app/widgets/mood_calendar.dart';
 import 'package:intl/intl.dart';
 import '../models/mood.dart';
 import '../services/user_mood_service.dart';
+import '../services/chart_data_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MoodTrackerScreen extends StatefulWidget {
   @override
@@ -61,14 +64,11 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
   }
 
   void addMood(Mood mood) async {
-    final now = DateTime.now();
-    if (selectedDate.year == now.year && selectedDate.month == now.month) {
-      setState(() {
-        final key = DateFormat('yyyy-MM-dd').format(now);
-        moodHistory[key] = mood;
-      });
-      await UserMoodService.saveTodayMood(mood.index);
-    }
+    final key = DateFormat('yyyy-MM-dd').format(selectedDate);
+    setState(() {
+      moodHistory[key] = mood;
+    });
+    await UserMoodService.saveMoodForDate(selectedDate, mood.index);
   }
 
   void changeMonth(int offset) {
@@ -78,91 +78,63 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen> with SingleTicker
     });
   }
 
-  List<int> _getChartData(String mode) {
-    final now = DateTime.now();
-
-    if (mode == "Ngày") {
-      final todayMood = moodHistory[now.day];
-      return todayMood != null ? [todayMood.index + 1] : [3];
-    }
-
-    if (mode == "Tuần") {
-      DateTime startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      return List.generate(7, (i) {
-        final date = startOfWeek.add(Duration(days: i));
-        final mood = moodHistory[date.day];
-        return mood?.index != null ? mood!.index + 1 : 3;
-      });
-    }
-
-    if (mode == "Tháng") {
-      return List.generate(DateTime(now.year, now.month + 1, 0).day, (i) {
-        final mood = moodHistory[i + 1];
-        return mood?.index != null ? mood!.index + 1 : 3;
-      });
-    }
-
-    if (mode == "Năm") {
-      return List.generate(12, (i) {
-        int sum = 0, count = 0;
-        for (int d = 1; d <= 31; d++) {
-          try {
-            final date = DateTime(now.year, i + 1, d);
-            final mood = moodHistory[date.day];
-            if (mood != null) {
-              sum += mood.index + 1;
-              count++;
-            }
-          } catch (_) {}
-        }
-        return count > 0 ? (sum ~/ count) : 3;
-      });
-    }
-
-    return [3];
-  }
-
   void _showMoodChart() {
     String selectedMode = "Tuần";
     showDialog(
       context: context,
       builder: (context) {
-        List<int> moodData = _getChartData(selectedMode);
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Row(
-                children: [
-                  Text("Biểu đồ cảm xúc - "),
-                  DropdownButton<String>(
-                    value: selectedMode,
-                    underline: Container(),
-                    items: ["Ngày", "Tuần", "Tháng", "Năm"].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setState(() {
-                        selectedMode = newValue!;
-                        moodData = _getChartData(selectedMode);
-                      });
-                    },
+        return FutureBuilder<List<int>>(
+          future: ChartDataService.getChartForTimeframe(
+            userId: FirebaseAuth.instance.currentUser!.uid,
+            timeframe: selectedMode.toLowerCase(),
+          ),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            List<int> moodData = snapshot.data!;
+            return StatefulBuilder(
+              builder: (context, setState) {
+                return AlertDialog(
+                  title: Row(
+                    children: [
+                      const Text("Biểu đồ cảm xúc - "),
+                      DropdownButton<String>(
+                        value: selectedMode,
+                        underline: Container(),
+                        items: ["Ngày", "Tuần", "Tháng", "Năm"].map((value) {
+                          return DropdownMenuItem(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (value) async {
+                          if (value != null) {
+                            selectedMode = value;
+                            final newData = await ChartDataService.getChartForTimeframe(
+                              userId: FirebaseAuth.instance.currentUser!.uid,
+                              timeframe: value.toLowerCase(),
+                            );
+                            setState(() => moodData = newData);
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              content: Container(
-                height: 300,
-                width: 300,
-                child: MoodChart(moodData: moodData, viewType: selectedMode),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text("Đóng"),
-                ),
-              ],
+                  content: SizedBox(
+                    height: 300,
+                    width: 300,
+                    child: MoodChart(moodData: moodData, viewType: selectedMode),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Đóng"),
+                    ),
+                  ],
+                );
+              },
             );
           },
         );

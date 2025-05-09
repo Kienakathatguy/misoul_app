@@ -47,22 +47,37 @@ class MoodChart extends StatelessWidget {
     final index = value.toInt();
     String label = "";
 
+    final now = DateTime.now();
+
     switch (viewType) {
+      case "Ngày":
+      // Chỉ 1 điểm dữ liệu → hiển thị hôm nay
+        label = "${now.day}/${now.month}";
+        break;
+
       case "Tuần":
         const weekdays = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-        if (index >= 0 && index < weekdays.length) label = weekdays[index];
+        if (index >= 0 && index < weekdays.length) {
+          label = weekdays[index];
+        }
         break;
+
       case "Tháng":
-        label = "T${index + 1}";
+        label = "${index + 1}";
         break;
+
       case "Năm":
-        const months = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
-        if (index >= 0 && index < months.length) label = months[index];
+        const months = ["Th1", "Th2", "Th3", "Th4", "Th5", "Th6", "Th7", "Th8", "Th9", "Th10", "Th11", "Th12"];
+        if (index >= 0 && index < months.length) {
+          label = months[index];
+        }
         break;
-      default: // Ngày
+
+      default:
         label = "${index + 1}";
     }
 
-    return Text(label, style: TextStyle(fontSize: 12));
+    return Text(label, style: const TextStyle(fontSize: 12));
   }
+
 }

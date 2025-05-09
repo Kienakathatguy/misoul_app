@@ -11,16 +11,36 @@ class HomeForFamilyScreen extends StatefulWidget {
 
 class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
   final TextEditingController _codeController = TextEditingController();
+  List<String> trackedUsers = [];
+  final currentUser = FirebaseAuth.instance.currentUser;
 
-  void _connectToUser() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadTrackedUsers();
+  }
+
+  Future<void> _loadTrackedUsers() async {
+    if (currentUser == null) return;
+    final snapshot = await FirebaseFirestore.instance
+        .collection('user_connections')
+        .where('familyId', isEqualTo: currentUser!.uid)
+        .where('status', isEqualTo: 'accepted')
+        .get();
+
+    setState(() {
+      trackedUsers = snapshot.docs.map((doc) => doc['userId'] as String).toList();
+    });
+  }
+
+  Future<void> _connectToUser() async {
     final code = _codeController.text.trim();
-    final currentUser = FirebaseAuth.instance.currentUser;
     if (code.isEmpty || currentUser == null) return;
 
     final requestRef = FirebaseFirestore.instance.collection('connection_requests');
 
     await requestRef.add({
-      'requesterId': currentUser.uid,
+      'requesterId': currentUser!.uid,
       'targetId': code,
       'status': 'pending',
       'timestamp': FieldValue.serverTimestamp(),
@@ -31,19 +51,123 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
     );
 
     _codeController.clear();
+    await _loadTrackedUsers();
   }
 
-  Stream<List<String>> _acceptedConnectionsStream() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return const Stream.empty();
+  Future<void> sendEmotionChartRequest({
+    required String targetUserId,
+    required String timeframe,
+  }) async {
+    if (currentUser == null) return;
 
-    return FirebaseFirestore.instance
-        .collection('connection_requests')
-        .where('requesterId', isEqualTo: currentUser.uid)
+    final connectionSnapshot = await FirebaseFirestore.instance
+        .collection('user_connections')
+        .where('familyId', isEqualTo: currentUser!.uid)
+        .where('userId', isEqualTo: targetUserId)
         .where('status', isEqualTo: 'accepted')
-        .snapshots()
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => doc['targetId'] as String).toList());
+        .get();
+
+    if (connectionSnapshot.docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Bạn cần được xác nhận kết nối trước khi xem biểu đồ.")),
+      );
+      return;
+    }
+
+    final existing = await FirebaseFirestore.instance
+        .collection('emotion_view_requests')
+        .where('requesterId', isEqualTo: currentUser!.uid)
+        .where('targetUserId', isEqualTo: targetUserId)
+        .where('timeframe', isEqualTo: timeframe)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    if (existing.docs.isNotEmpty) return;
+
+    await FirebaseFirestore.instance.collection('emotion_view_requests').add({
+      'requesterId': currentUser!.uid,
+      'targetUserId': targetUserId,
+      'timeframe': timeframe,
+      'status': 'pending',
+      'requestedAt': FieldValue.serverTimestamp(),
+    });
+
+    // ✅ Hiện thông báo và cập nhật UI
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Đã gửi yêu cầu xem biểu đồ")),
+      );
+      setState(() {}); // cập nhật UI sau khi gửi yêu cầu
+    }
+  }
+
+  void _showChartRequestDialog(String targetUserId) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: ['ngày', 'tuần', 'tháng', 'năm'].map((timeframe) {
+              return ListTile(
+                title: Text("Xem biểu đồ theo $timeframe"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await sendEmotionChartRequest(
+                    targetUserId: targetUserId,
+                    timeframe: timeframe,
+                  );
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'accepted':
+        return 'Đã chấp nhận';
+      case 'rejected':
+        return 'Từ chối';
+      default:
+        return 'Đang chờ';
+    }
+  }
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Xác nhận đăng xuất"),
+        content: const Text("Bạn có chắc chắn muốn đăng xuất không?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Hủy"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+            ),
+            child: const Text("Đăng xuất"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -58,10 +182,8 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.black),
-            onPressed: () {
-              // TODO: gọi hàm đăng xuất
-            },
-          )
+            onPressed: () => _confirmLogout(context),
+          ),
         ],
       ),
       body: Padding(
@@ -74,7 +196,6 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
             ),
             const SizedBox(height: 24),
-
             const Text("Kết nối với người thân của bạn", style: TextStyle(fontSize: 16)),
             const SizedBox(height: 12),
             Row(
@@ -101,41 +222,90 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
                 )
               ],
             ),
-
             const SizedBox(height: 32),
             const Text("Đang theo dõi:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-
             const SizedBox(height: 12),
             Expanded(
-              child: StreamBuilder<List<String>>(
-                stream: _acceptedConnectionsStream(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              child: trackedUsers.isEmpty
+                  ? const Center(child: Text("Chưa theo dõi ai cả."))
+                  : ListView.builder(
+                itemCount: trackedUsers.length,
+                itemBuilder: (context, index) {
+                  final user = trackedUsers[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    child: ListTile(
+                      title: Text("Mã người dùng: $user"),
+                      subtitle: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        future: FirebaseFirestore.instance
+                            .collection('emotion_view_requests')
+                            .where('requesterId', isEqualTo: currentUser!.uid)
+                            .where('targetUserId', isEqualTo: user)
+                            .orderBy('requestedAt', descending: true)
+                            .get(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Text("Đang tải...");
+                          }
 
-                  final trackedUsers = snapshot.data ?? [];
+                          if (snapshot.hasError) {
+                            return const Text("Đã xảy ra lỗi.");
+                          }
 
-                  if (trackedUsers.isEmpty) {
-                    return const Text("Chưa theo dõi ai cả.");
-                  }
+                          final docs = snapshot.data?.docs ?? [];
 
-                  return ListView.builder(
-                    itemCount: trackedUsers.length,
-                    itemBuilder: (context, index) {
-                      final userId = trackedUsers[index];
-                      return Card(
-                        child: ListTile(
-                          title: Text("Mã người dùng: $userId"),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.visibility),
-                            onPressed: () {
-                              // TODO: chuyển đến màn hình xem chỉ số
-                            },
-                          ),
-                        ),
-                      );
-                    },
+                          if (docs.isEmpty) {
+                            return const Text("Chưa gửi yêu cầu xem biểu đồ");
+                          }
+
+                          // Lọc ra những request đã được chấp nhận
+                          final acceptedRequests = docs.where((doc) => doc.data()['status'] == 'accepted').toList();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...docs.take(2).map((doc) {
+                                final data = doc.data();
+                                final status = data['status'] ?? 'pending';
+                                final timeframe = data['timeframe'] ?? 'không rõ';
+
+                                return Text(
+                                  "• $timeframe - ${_statusLabel(status)}",
+                                  style: TextStyle(
+                                    color: status == 'accepted'
+                                        ? Colors.green
+                                        : status == 'rejected'
+                                        ? Colors.red
+                                        : Colors.orange,
+                                    fontSize: 13,
+                                  ),
+                                );
+                              }),
+                              if (acceptedRequests.isNotEmpty)
+                                TextButton(
+                                  onPressed: () {
+                                    final data = acceptedRequests.first.data();
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/emotion_chart',
+                                      arguments: {
+                                        'userId': user,
+                                        'timeframe': data['timeframe'],
+                                      },
+                                    );
+                                  },
+                                  child: const Text("Xem biểu đồ"),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.bar_chart),
+                        tooltip: "Gửi yêu cầu xem biểu đồ",
+                        onPressed: () => _showChartRequestDialog(user),
+                      ),
+                    ),
                   );
                 },
               ),
