@@ -67,12 +67,7 @@ class MisoulApp extends StatelessWidget {
         '/healing': (context) => HealingScreen(),
         '/login': (context) => LoginScreen(),
         '/chatbot': (context) => TherapyChatApp(),
-        '/imu': (context) {
-          final userId = FirebaseAuth.instance.currentUser?.uid;
-          if (userId == null) return const Scaffold(body: Center(child: Text("Không tìm thấy user")));
-
-          return IMUScreen(userId: userId);
-        },
+        '/imu': (context) => IMUScreen(),
         '/scheduler': (context) => SchedulerScreen(),
         '/mood_tracker': (context) => MoodTrackerScreen(),
         '/settings': (context) => const PlaceholderScreen(title: 'Cài đặt'),

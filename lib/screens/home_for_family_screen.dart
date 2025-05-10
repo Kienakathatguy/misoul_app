@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:misoul_fixed_app/screens/imu_family_screen.dart';
 
 class HomeForFamilyScreen extends StatefulWidget {
   const HomeForFamilyScreen({super.key});
@@ -92,7 +93,6 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
       'requestedAt': FieldValue.serverTimestamp(),
     });
 
-    // ✅ Hiện thông báo và cập nhật UI
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đã gửi yêu cầu xem biểu đồ")),
@@ -253,12 +253,10 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
                           }
 
                           final docs = snapshot.data?.docs ?? [];
-
                           if (docs.isEmpty) {
                             return const Text("Chưa gửi yêu cầu xem biểu đồ");
                           }
 
-                          // Lọc ra những request đã được chấp nhận
                           final acceptedRequests = docs.where((doc) => doc.data()['status'] == 'accepted').toList();
 
                           return Column(
@@ -300,10 +298,27 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
                           );
                         },
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.bar_chart),
-                        tooltip: "Gửi yêu cầu xem biểu đồ",
-                        onPressed: () => _showChartRequestDialog(user),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.favorite, color: Colors.pink),
+                            tooltip: "Gửi lời yêu thương",
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => IMissUScreen(targetUserId: user),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.bar_chart),
+                            tooltip: "Gửi yêu cầu xem biểu đồ",
+                            onPressed: () => _showChartRequestDialog(user),
+                          ),
+                        ],
                       ),
                     ),
                   );
