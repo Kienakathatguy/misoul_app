@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:misoul_fixed_app/screens/imu_family_screen.dart';
+import 'package:misoul_fixed_app/screens/family_therapy_chat_app.dart';
 
 class HomeForFamilyScreen extends StatefulWidget {
   const HomeForFamilyScreen({super.key});
@@ -225,6 +226,23 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
             const SizedBox(height: 32),
             const Text("Đang theo dõi:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FamilyTherapyChatApp()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text("Trò chuyện với AI", style: TextStyle(fontSize: 16)),
+            ),
+            const SizedBox(height: 20),
             Expanded(
               child: trackedUsers.isEmpty
                   ? const Center(child: Text("Chưa theo dõi ai cả."))
