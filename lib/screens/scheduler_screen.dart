@@ -3,6 +3,8 @@ import 'package:misoul_fixed_app/services/scheduler_service.dart';
 import 'package:misoul_fixed_app/screens/exercise_screen.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SchedulerScreen extends StatefulWidget {
   const SchedulerScreen({Key? key}) : super(key: key);
@@ -52,7 +54,7 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
               label: Text("Tạo lịch luyện tập với AI"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white, // ✅ màu trắng cho chữ
+                foregroundColor: Colors.white,
               ),
             ),
             const SizedBox(height: 20),
@@ -162,6 +164,18 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
       // LƯU KẾT QUẢ VÀO SHARED PREFERENCES
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('today_exercises', jsonEncode(response));
+
+      // LƯU VÀO FIRESTORE
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final todayKey = DateTime.now().toIso8601String().substring(0, 10); // e.g. "2025-05-09"
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('scheduledTasks')
+            .doc(todayKey)
+            .set(response);
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Lỗi khi gọi API")),
