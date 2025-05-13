@@ -10,42 +10,32 @@ class MoodCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get days in month
+    // Get number of days in the selected month
     int daysInMonth = DateTime(selectedDate.year, selectedDate.month + 1, 0).day;
-
-    // Get current date
-    DateTime now = DateTime.now();
-    bool isSameMonth = now.year == selectedDate.year && now.month == selectedDate.month;
-    int currentDay = now.day;
 
     // Day names in Vietnamese
     List<String> dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
     return Column(
       children: [
-        // Day names row
+        // Day header row
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: dayNames.map((day) =>
-                Text(
-                  day,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                )
-            ).toList(),
+            children: dayNames.map((day) => Text(
+              day,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            )).toList(),
           ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
 
         // Calendar grid
         Expanded(
           child: GridView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 15),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
               childAspectRatio: 1,
               mainAxisSpacing: 10,
@@ -58,8 +48,7 @@ class MoodCalendar extends StatelessWidget {
               String key = DateFormat('yyyy-MM-dd').format(thisDay);
               Mood? mood = moodHistory[key];
 
-              // Only show emoji for the current day if it has a mood
-              bool showEmoji = isSameMonth && day == currentDay && mood != null;
+              bool showEmoji = mood != null;
 
               return Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -68,15 +57,18 @@ class MoodCalendar extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: showEmoji ? mood.color : Colors.grey.shade200,
+                      color: showEmoji ? mood!.color : Colors.grey.shade200,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: showEmoji
-                          ? (mood.isCustomEmoji
+                          ? (mood!.isCustomEmoji
                           ? Image.asset(mood.emojiPath!, width: 24, height: 24)
-                          : Text(mood.emoji, style: TextStyle(fontSize: 20)))
-                          : Text('$day', style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
+                          : Text(mood.emoji, style: const TextStyle(fontSize: 20)))
+                          : Text(
+                        '$day',
+                        style: const TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500),
+                      ),
                     ),
                   ),
                 ],

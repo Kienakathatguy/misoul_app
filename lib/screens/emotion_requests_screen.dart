@@ -74,7 +74,15 @@ class _EmotionRequestsScreenState extends State<EmotionRequestsScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text("Người thân muốn xem biểu đồ cảm xúc theo $timeframe"),
-                  subtitle: Text("ID người gửi: $requesterId"),
+                  subtitle: FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance.collection('users').doc(requesterId).get(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const Text("Đang tải...");
+                      final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                      final name = userData?['displayName'] ?? 'ID: $requesterId';
+                      return Text("Người gửi: $name");
+                    },
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
