@@ -340,6 +340,8 @@
       String? emoji,
       String? emojiPath,
       Color? bgColor,
+      Widget? backgroundImage,
+      Widget? centerContent,
       VoidCallback? onTap,
     }) {
       return GestureDetector(
@@ -453,37 +455,54 @@
         ),
       );
     }
-  
+
     Widget _buildChatbotCard() {
       return _buildFeatureCard(
         title: "MiBot",
         subtitle: "Còn $chatbotMinutesLeft'",
         icon: Icons.chat_bubble_outline,
         bgColor: const Color(0xFFFF8FA5),
+        backgroundImage: Image.asset(
+          'assets/images/chatbot_timer_circle.png',
+          fit: BoxFit.cover,
+        ),
+        centerContent: Text(
+          "$chatbotMinutesLeft'",
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         onTap: () => _navigateTo(context, '/chatbot'),
       );
     }
-  
+
     Widget _buildMoodCard() {
       return _buildFeatureCard(
         title: "Tâm trạng",
         subtitle: _todayMood?.name ?? 'Chưa có',
         emoji: _todayMood?.emoji,
         emojiPath: _todayMood?.emojiPath,
-        bgColor: _todayMood?.color ?? Colors.purple,
+        bgColor: Colors.purple,
+        centerContent: Image.asset(
+          'assets/images/mood_chart.png',
+          fit: BoxFit.contain,
+          height: 60,
+        ),
       );
     }
-  
+
     Widget _buildConnectCard() {
       return _buildFeatureCard(
-        title: "Người thân",
-        subtitle: _todayMood?.name ?? 'Chưa có',
-        icon: Icons.group,
+        title: "Người thân đã kết nối ",
+        icon: Icons.favorite, // hoặc Icons.group, tuỳ style bạn chọn
         bgColor: Colors.orangeAccent,
         onTap: () => Navigator.pushNamed(context, '/connected_family'),
       );
     }
-  
+
+
     Widget _buildExerciseCard() {
       if (todayExercises.isEmpty) return const SizedBox.shrink();
   
@@ -545,20 +564,6 @@
         _buildChatbotCard(),
         _buildExerciseCard(),
         _buildMoodCard(),
-        _buildFeatureCard(
-          title: "Ghi âm",
-          subtitle: "Ghi lại cảm xúc",
-          icon: Icons.mic,
-          bgColor: Colors.greenAccent.shade100,
-          onTap: () => _navigateTo(context, '/voice_recorder'),
-        ),
-        _buildFeatureCard(
-          title: "Nhạc chữa lành",
-          subtitle: "Âm thanh thư giãn",
-          icon: Icons.music_note,
-          bgColor: Colors.blueAccent.shade100,
-          onTap: () => _navigateTo(context, '/healing'),
-        ),
         _buildConnectCard(),
       ];
   

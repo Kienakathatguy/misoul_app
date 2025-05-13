@@ -88,6 +88,8 @@ flutter:
     - assets/images/out_of_chat.png
     - assets/images/background_decor_out_of_chat.png
     - assets/images/logo.png
+    - assets/images/chatbot_timer_circle.png
+    - assets/images/mood_chart.png
 
 
 flutter_native_splash:
