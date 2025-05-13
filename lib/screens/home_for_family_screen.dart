@@ -27,7 +27,7 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
   String displayName = '';
   String goal = '';
   String avatarUrl = '';
-
+  Map<String, String> trackedUserNames = {};
 
   @override
   void initState() {
@@ -116,19 +116,36 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
 
   Future<void> _loadTrackedUsers() async {
     if (currentUser == null) return;
+
     final snapshot = await FirebaseFirestore.instance
         .collection('user_connections')
         .where('familyId', isEqualTo: currentUser!.uid)
         .where('status', isEqualTo: 'accepted')
         .get();
 
+    final List<String> userIds = snapshot.docs
+        .map((doc) => doc['userId'] as String)
+        .toList();
+
+    Map<String, String> userNames = {};
+
+    for (String userId in userIds) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      userNames[userId] = userDoc.data()?['displayName'] ?? 'Người dùng';
+    }
+
     if (mounted) {
       setState(() {
-        trackedUsers =
-            snapshot.docs.map((doc) => doc['userId'] as String).toList();
+        trackedUsers = userIds;
+        trackedUserNames = userNames;
       });
     }
   }
+
 
   Future<void> _connectToUser() async {
     final code = _codeController.text.trim();
@@ -286,7 +303,7 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
         bottom: 20,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFFFF4D79),
+        color: Color(0xFF5E03FC),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
@@ -380,20 +397,19 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
       backgroundColor: const Color(0xFFF6F1FF),
       body: ListView(
         padding: const EdgeInsets.all(0),
-        // Không padding ngoài, chỉ padding bên trong
         children: [
-          _buildFamilyHeader(), // ✅ header tràn full màn hình
-
+          _buildFamilyHeader(),
           Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 24),
-                const Text("Kết nối với người thân của bạn",
-                    style: TextStyle(fontSize: 16)),
+                const Text(
+                  "Kết nối với người thân của bạn",
+                  style: TextStyle(fontSize: 16),
+                ),
                 const SizedBox(height: 12),
-
                 Row(
                   children: [
                     Expanded(
@@ -403,8 +419,9 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
                           hintText: "Nhập mã người dùng",
                           filled: true,
                           fillColor: Colors.white,
-                          border: OutlineInputBorder(borderRadius: BorderRadius
-                              .circular(16)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),
@@ -414,144 +431,183 @@ class _HomeForFamilyScreenState extends State<HomeForFamilyScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF333333),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: const Text(
-                          "Kết nối", style: TextStyle(color: Colors.white)),
-                    )
+                        "Kết nối",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
                   ],
                 ),
-
                 const SizedBox(height: 32),
-                const Text("Đang theo dõi:", style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600)),
+                const Text(
+                  "Đang theo dõi:",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 12),
-
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const FamilyTherapyChatApp()),
+                        builder: (_) => const FamilyTherapyChatApp(),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepPurple,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                   icon: const Icon(Icons.chat_bubble_outline),
                   label: const Text(
-                      "Trò chuyện với AI", style: TextStyle(fontSize: 16)),
+                    "Trò chuyện với AI",
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ),
-
                 const SizedBox(height: 20),
-
                 trackedUsers.isEmpty
-                    ? const Center(child: Padding(
-                  padding: EdgeInsets.only(top: 20),
-                  child: Text("Chưa theo dõi ai cả."),
-                ))
+                    ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: Text("Chưa theo dõi ai cả."),
+                  ),
+                )
                     : Column(
-                  children: trackedUsers.map((user) {
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: ListTile(
-                        title: Text("Mã người dùng: $user"),
-                        subtitle: FutureBuilder<
-                            QuerySnapshot<Map<String, dynamic>>>(
-                          future: FirebaseFirestore.instance
-                              .collection('emotion_view_requests')
-                              .where('requesterId', isEqualTo: currentUser!.uid)
-                              .where('targetUserId', isEqualTo: user)
-                              .orderBy('requestedAt', descending: true)
-                              .get(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Text("Đang tải...");
-                            }
-                            if (snapshot.hasError) {
-                              return const Text("Đã xảy ra lỗi.");
-                            }
+                  children: trackedUsers.map((userId) {
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .get(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const ListTile(
+                              title: Text("Đang tải thông tin..."));
+                        }
 
-                            final docs = snapshot.data?.docs ?? [];
-                            if (docs.isEmpty) {
-                              return const Text("Chưa gửi yêu cầu xem biểu đồ");
-                            }
+                        final userData = snapshot.data!.data()
+                        as Map<String, dynamic>?;
+                        final displayName =
+                            userData?['displayName'] ?? "Không rõ tên";
 
-                            final acceptedRequests = docs.where((doc) =>
-                            doc.data()['status'] == 'accepted').toList();
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          child: ListTile(
+                            title: Text(displayName),
+                            subtitle: FutureBuilder<
+                                QuerySnapshot<Map<String, dynamic>>>(
+                              future: FirebaseFirestore.instance
+                                  .collection('emotion_view_requests')
+                                  .where('requesterId',
+                                  isEqualTo: currentUser!.uid)
+                                  .where('targetUserId',
+                                  isEqualTo: userId)
+                                  .orderBy('requestedAt', descending: true)
+                                  .get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Text("Đang tải...");
+                                }
+                                if (snapshot.hasError) {
+                                  return const Text("Đã xảy ra lỗi.");
+                                }
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ...docs.take(2).map((doc) {
-                                  final data = doc.data();
-                                  final status = data['status'] ?? 'pending';
-                                  final timeframe = data['timeframe'] ??
-                                      'không rõ';
+                                final docs = snapshot.data?.docs ?? [];
+                                if (docs.isEmpty) {
+                                  return const Text(
+                                      "Chưa gửi yêu cầu xem biểu đồ");
+                                }
 
-                                  return Text(
-                                    "• $timeframe - ${_statusLabel(status)}",
-                                    style: TextStyle(
-                                      color: status == 'accepted'
-                                          ? Colors.green
-                                          : status == 'rejected'
-                                          ? Colors.red
-                                          : Colors.orange,
-                                      fontSize: 13,
-                                    ),
-                                  );
-                                }),
-                                if (acceptedRequests.isNotEmpty)
-                                  TextButton(
-                                    onPressed: () {
-                                      final data = acceptedRequests.first
-                                          .data();
-                                      Navigator.pushNamed(
-                                        context,
-                                        '/emotion_chart',
-                                        arguments: {
-                                          'userId': user,
-                                          'timeframe': data['timeframe'],
-                                        },
+                                final acceptedRequests = docs
+                                    .where((doc) =>
+                                doc.data()['status'] == 'accepted')
+                                    .toList();
+
+                                return Column(
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                                  children: [
+                                    ...docs.take(2).map((doc) {
+                                      final data = doc.data();
+                                      final status =
+                                          data['status'] ?? 'pending';
+                                      final timeframe = data['timeframe'] ??
+                                          'không rõ';
+
+                                      return Text(
+                                        "• $timeframe - ${_statusLabel(
+                                            status)}",
+                                        style: TextStyle(
+                                          color: status == 'accepted'
+                                              ? Colors.green
+                                              : status == 'rejected'
+                                              ? Colors.red
+                                              : Colors.orange,
+                                          fontSize: 13,
+                                        ),
                                       );
-                                    },
-                                    child: const Text("Xem biểu đồ"),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                  Icons.favorite, color: Colors.pink),
-                              tooltip: "Gửi lời yêu thương",
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        IMissUScreen(targetUserId: user),
-                                  ),
+                                    }),
+                                    if (acceptedRequests.isNotEmpty)
+                                      TextButton(
+                                        onPressed: () {
+                                          final data = acceptedRequests
+                                              .first
+                                              .data();
+                                          Navigator.pushNamed(
+                                            context,
+                                            '/emotion_chart',
+                                            arguments: {
+                                              'userId': userId,
+                                              'timeframe':
+                                              data['timeframe'],
+                                            },
+                                          );
+                                        },
+                                        child: const Text("Xem biểu đồ"),
+                                      ),
+                                  ],
                                 );
                               },
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.bar_chart),
-                              tooltip: "Gửi yêu cầu xem biểu đồ",
-                              onPressed: () => _showChartRequestDialog(user),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.favorite,
+                                      color: Colors.pink),
+                                  tooltip: "Gửi lời yêu thương",
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            IMissUScreen(
+                                                targetUserId: userId),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.bar_chart),
+                                  tooltip: "Gửi yêu cầu xem biểu đồ",
+                                  onPressed: () =>
+                                      _showChartRequestDialog(userId),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        );
+                      },
                     );
                   }).toList(),
                 ),
