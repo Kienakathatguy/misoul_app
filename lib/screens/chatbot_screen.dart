@@ -219,7 +219,7 @@
               "message": botReply,
             });
           });
-          await _saveConversation(role: "bot", text: botReply); // ✅ moved inside
+          await _saveConversation(role: "bot", text: botReply);
         }
       } else {
         List<String> alternativeResponses = [
@@ -237,7 +237,7 @@
           });
         });
 
-        await _saveConversation(role: "bot", text: botReply); // ✅ moved inside
+        await _saveConversation(role: "bot", text: botReply);
       }
     }
 
